@@ -1,0 +1,10 @@
+{
+    "java.project.sourcePaths": [
+        "Mandatory04/Knapsack",
+        "Mandatory04/DP/KnapsackProblem",
+        "Mandatory03",
+        "Exercises",
+        "Mandatory04/DynamicProgramming/KnapsackProblem"
+    ],
+    "java.project.referencedLibraries": []
+}
