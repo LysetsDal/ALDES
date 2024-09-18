@@ -1,4 +1,4 @@
-package Mandatory03.DivideAndConquer.ClosestPoints;
+package DivideAndConquer.ClosestPoints;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -9,31 +9,25 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.ArrayList;
-
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.StringTokenizer;
 
 public class ClosestPoints {
 
-    private static final PointComparer comparer = new PointComparer();
-
     public static void main(String[] args) {
         Kattio io = new Kattio(System.in);
         int size = io.getInt();
 
-        List<Point> pointsX = new ArrayList<>();
+        Point[] points = new Point[size];
 
         for (int i = 0; i < size; i++) {
             double x = io.getDouble();
             double y = io.getDouble();
-            Point point = new Point(x, y);
-            pointsX.add(point);
+            points[i] = new Point(x, y);
         }
 
-        // Start logic
-        pointsX.sort(comparer.compareByX());
-        
-        List<Point> res = closestUtil(pointsX, 0, size);
+        Point[] res = findClosestPair(points);
 
         for (Point point : res) {
             System.out.println(point);
@@ -42,127 +36,143 @@ public class ClosestPoints {
         io.close();
     }
 
-    public static List<Point> closestUtil(List<Point> pointsX,  int startIdx, int endIdx) {
-        if ((endIdx - startIdx) <= 3) {
-            return bruteForce(pointsX, endIdx);
+    private static Point[] closestPairRec(Point[] pointByX, Point[] pointByY) {
+        int n = pointByX.length;
+
+        // Base case: Brute-force on 3 or fewer points
+        if (n <= 3) {
+            return bruteForce(pointByX);
         }
 
-        int mid = startIdx + (endIdx - startIdx) / 2;
-        Point midPoint = pointsX.get(mid);
+        int mid = n / 2;
+        Point midPoint = pointByX[mid];
 
-        // Left and right partition of lists
-        List<Point> left = closestUtil(pointsX, startIdx, mid);
-        List<Point> right = closestUtil(pointsX, mid, endIdx);
+        // Divide points into two "panes"
+        Point[] leftPane = Arrays.copyOfRange(pointByX, 0, mid);
+        Point[] rightPane = Arrays.copyOfRange(pointByX, mid, n);
 
-        // left and right delta
-        double dl = dist(left.get(0), left.get(1));
-        double dr = dist(right.get(0), right.get(1));
-
-        // find the min of the two
-        double delta = Math.min(dl, dr);
-
-        // Set deltaPoints equal to the min two points
-        List<Point> deltaPoints;
-        if (delta == dl) {
-            deltaPoints = left;
-        } else {
-            deltaPoints = right;
-        }
-
-        // Only add points in strip array that are closer than current delta
-        List<Point> strip = new ArrayList<>();
-        for (int i = 0; i < endIdx; i++) {
-            // calculates the delta distance on each side.
-            if (Math.abs(pointsX.get(i).x - midPoint.x) < delta) {
-                strip.add(pointsX.get(i));
-                System.out.println("Added:" + pointsX.get(i).toString() + " to strip");
+        // Sort by the Y coordinates to not sort at every recursion
+        List<Point> leftPaneByY = new ArrayList<>();
+        List<Point> rightPaneByY = new ArrayList<>();
+        for (Point p : pointByY) {
+            if (p.x <= midPoint.x) {
+                leftPaneByY.add(p);
+            } else {
+                rightPaneByY.add(p);
             }
         }
 
-        List<Point> stripClosest = stripClosest(strip, strip.size(), delta);
+        Point[] closestPairLeft = closestPairRec(leftPane, leftPaneByY.toArray(new Point[0]));
+        Point[] closestPairRight = closestPairRec(rightPane, rightPaneByY.toArray(new Point[0]));
 
-        if (stripClosest.get(0) == null | stripClosest.get(1) == null) {
-            return deltaPoints;
+        // Find the smaller distance of the left and right pane
+        double delta = Math.min(dist(closestPairLeft[0], closestPairLeft[1]),
+                dist(closestPairRight[0], closestPairRight[1]));
+
+        // Get the maximum x-coordinate in the left pane
+        double maxX = leftPane[leftPane.length - 1].x;
+
+        // Find the points in the strip within delta dist
+        List<Point> strip = new ArrayList<>();
+        for (Point p : pointByY) {
+            if (Math.abs(p.x - maxX) < delta) {
+                strip.add(p);
+            }
         }
 
-        if (delta < dist(stripClosest.get(0), stripClosest.get(0))) {
-            return deltaPoints;
+        Point[] closestPairStrip = closestPairInStrip(strip.toArray(new Point[0]), delta);
 
+        if (closestPairStrip != null && dist(closestPairStrip[0], closestPairStrip[1]) < delta) {
+            return closestPairStrip;
+        } else {
+            return (dist(closestPairLeft[0], closestPairLeft[1]) < dist(closestPairRight[0], closestPairRight[1]))
+                    ? closestPairLeft
+                    : closestPairRight;
         }
-
-        return stripClosest;
     }
 
-    public static List<Point> stripClosest(List<Point> strip, int size, double d) {
-        double min = d;
-        List<Point> res = new ArrayList<>();
+    public static Point[] findClosestPair(Point[] points) {
+        Point[] Px = points.clone();
+        Point[] Py = points.clone();
 
-        strip.sort(comparer.compareByY());
+        Arrays.sort(Px, Comparator.comparingDouble(p -> p.x));
+        Arrays.sort(Py, Comparator.comparingDouble(p -> p.y));
 
-        for (int i = 0; i < size; ++i) {
-            for (int j = i + 1; j < size && (strip.get(j).y - strip.get(i).y) < min; ++j) {
-                double dist = dist(strip.get(i), strip.get(j));
-                if (dist < min) {
-                    min = dist;
-                    res.add(strip.get(i));
-                    res.add(strip.get(j));
+        return closestPairRec(Px, Py);
+    }
+
+    private static Point[] closestPairInStrip(Point[] strip, double delta) {
+        double minDist = delta;
+        Point[] closestPair = new Point[2];
+
+        // If strip has fewer than 2 points
+        if (strip.length < 2) {
+            return null;
+        }
+
+        // Initialize with the first two points in the strip
+        closestPair[0] = strip[0];
+        closestPair[1] = strip[1];
+
+        int n = strip.length;
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n && (strip[j].y - strip[i].y) < delta; j++) {
+                double dist = dist(strip[i], strip[j]);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closestPair[0] = strip[i];
+                    closestPair[1] = strip[j];
                 }
             }
         }
-
-        return res;
+        return closestPair;
     }
 
-    public static List<Point> bruteForce(List<Point> points, int n) {
-        double min = Double.MAX_VALUE;
-        List<Point> res = new ArrayList<>();
+    public static Point[] bruteForce(Point[] points) {
+        int n = points.length;
+        double minDist = Double.MAX_VALUE;
+        Point[] closestPair = new Point[2];
+
+        // base case (early finish)
+        if (n == 2) {
+            closestPair[0] = points[0];
+            closestPair[1] = points[1];
+        }
+
+        closestPair[0] = points[0];
+        closestPair[1] = points[1];
 
         for (int i = 0; i < n; ++i) {
             for (int j = i + 1; j < n; ++j) {
-                double currMin = dist(points.get(i), points.get(j));
-                if (currMin < min) {
-                    min = currMin;
-                    res.add(points.get(i));
-                    res.add(points.get(j));
+                double currMin = dist(points[i], points[j]);
+                if (currMin < minDist) {
+                    minDist = currMin;
+                    closestPair[0] = points[i];
+                    closestPair[1] = points[j];
                 }
             }
         }
-        return res;
+        return closestPair;
     }
 
     private static double dist(Point p1, Point p2) {
-        double distX = (p2.x - p1.x) * (p2.x - p1.x);
-        double distY = (p2.y - p1.y) * (p2.y - p1.y);
+        if (p1 == null || p2 == null) {
+            return Double.MAX_VALUE;
+        }
+
+        double distX = Math.pow(p1.x - p2.x, 2);
+        double distY = Math.pow(p1.y - p2.y, 2);
         double d = Math.sqrt(distX + distY);
         return d;
     }
 
-    private static class PointComparer {
-        public Comparator<Point> compareByX() {
-            return Comparator.comparingDouble(o -> o.x);
-        }
-
-        public Comparator<Point> compareByY() {
-            return Comparator.comparingDouble(o -> o.y);
-        }
-    }
-
-    public static class Point implements Comparable<Point> {
+    public static class Point {
         public double x = 0;
         public double y = 0;
 
         public Point(double x, double y) {
             this.x = x;
             this.y = y;
-        }
-
-        @Override
-        public int compareTo(Point other) {
-            return compareToX(other);
-        }
-
-        public int compareToX(Point other) {
-            return Double.compare(this.x, other.x);
         }
 
         @Override
@@ -182,28 +192,12 @@ public class ClosestPoints {
             r = new BufferedReader(new InputStreamReader(i));
         }
 
-        public boolean hasMoreTokens() {
-            return peekToken() != null;
-        }
-
         public int getInt() {
             return Integer.parseInt(nextToken());
         }
 
         public double getDouble() {
             return Double.parseDouble(nextToken());
-        }
-
-        public float getFloat() {
-            return Float.parseFloat(nextToken());
-        }
-
-        public long getLong() {
-            return Long.parseLong(nextToken());
-        }
-
-        public String getWord() {
-            return nextToken();
         }
 
         private BufferedReader r;
