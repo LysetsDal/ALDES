@@ -1,4 +1,4 @@
-package Mandatory03.DivideAndConquer.MergeSort;
+package DivideAndConquer.MergeSort;
 
 import java.util.ArrayList;
 import java.util.List;
