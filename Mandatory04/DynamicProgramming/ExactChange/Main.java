@@ -1,4 +1,4 @@
-package DynamicProgramming.ExactChange;
+package ExactChange;
 
 import java.io.*;
 import java.util.Arrays;
